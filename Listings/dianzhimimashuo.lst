@@ -1,0 +1,798 @@
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE DIANZHIMIMASHUO
+OBJECT MODULE PLACED IN .\Objects\dianzhimimashuo.obj
+COMPILER INVOKED BY: D:\单片机\仿真软件_C51\C51\BIN\C51.EXE dianzhimimashuo.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEN
+                    -D PRINT(.\Listings\dianzhimimashuo.lst) TABS(2) OBJECT(.\Objects\dianzhimimashuo.obj)
+
+line level    source
+
+   1          #include<reg51.h>
+   2          #include<intrins.h>
+   3           
+   4          #define uchar unsigned char 
+   5          #define uint  unsigned int
+   6          
+   7          sbit SCL=P2^0; //时钟线接口 
+   8          sbit SDA=P2^1; //数据线接口
+   9          sbit D1=P2^2;  //开锁信号
+  10          sbit beep=P2^4;//蜂鸣器接口
+  11          sbit E=P2^5;   //液晶使能 
+  12          sbit RW=P2^6;  //读写控制
+  13          sbit RS=P2^7;  //数据命令选择 
+  14          sbit k1=P3^2;  //恢复初始密码按键
+  15          
+  16          uchar idata table1[6]={0,8,0,8,0,8}; //初始化密码
+  17          uchar dd; 
+  18          uchar aa; //存放密码错误的次数，达到三次将报警
+  19          uchar bb;
+  20          uchar cc;
+  21          //延时子函数
+  22          void delay1(uint z)
+  23          {
+  24   1        uint x,y;
+  25   1        for(x=0;x<z;x++)
+  26   1          for(y=0;y<110;y++);
+  27   1      }
+  28          void delay2() 
+  29          {
+  30   1        ;;
+  31   1      }
+  32          //总线初始化子函数
+  33          void chushi()
+  34          {
+  35   1        SDA=1;
+  36   1        delay2();
+  37   1        SCL=1;
+  38   1        delay2();
+  39   1      }
+  40          //启动信号子函数
+  41          void start()
+  42          {
+  43   1        SDA=1;
+  44   1        SCL=1;
+  45   1        delay2();
+  46   1        SDA=0;
+  47   1        delay2();
+  48   1      }
+  49          //停止信号子函数
+  50          void stop()
+  51          {
+  52   1        SDA=0;
+  53   1        delay2();
+  54   1        SCL=1;
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 2   
+
+  55   1        delay2();
+  56   1        SDA=1;
+  57   1        delay2();
+  58   1      }
+  59          //应答信号子函数
+  60          void respons()
+  61          {
+  62   1        uchar i=0;
+  63   1        SCL=1;
+  64   1        delay2();
+  65   1        while(SDA==1&&i<255)//等待应答，过一段时间不应答退出循环
+  66   1          i++;
+  67   1        SCL=0;
+  68   1        delay2();
+  69   1      }
+  70          //写一个字节子函数
+  71          void writebyte(uchar date)
+  72          {
+  73   1        uchar i,temp;
+  74   1        temp=date;
+  75   1        for(i=0;i<8;i++)
+  76   1        {
+  77   2          temp<<=1;//temp左移一位后高位进CY
+  78   2          SCL=0;
+  79   2          delay2();
+  80   2          SDA=CY;
+  81   2          delay2();
+  82   2          SCL=1;
+  83   2          delay2();
+  84   2        } 
+  85   1        SCL=0;//应答信号中SCL = 1，所以这里要置0
+  86   1        delay2();
+  87   1        SDA=1;//用完要释放数据总线
+  88   1        delay2();
+  89   1      }
+  90          //读一个字节子函数
+  91          uchar readbyte() 
+  92          {
+  93   1        uchar i,k;
+  94   1        SCL=0;
+  95   1        delay2();
+  96   1        SDA=1;
+  97   1        for(i=0;i<8;i++)
+  98   1        {
+  99   2          SCL=1;  
+ 100   2          delay2();
+ 101   2          k=(k<<1)|SDA; //和最低位或，一位位送到K
+ 102   2          SCL=0;
+ 103   2          delay2();
+ 104   2        }
+ 105   1        delay2();
+ 106   1        return k;
+ 107   1      }
+ 108          //向地址写一个字节数据子函数
+ 109          void write_add(uchar address,uchar date)
+ 110          {
+ 111   1        start();
+ 112   1        writebyte(0xa0);//A0,A1,A2接地，AT24C02芯片地址为1010，送控制字为1010A2A1A0R/~W
+ 113   1        respons();
+ 114   1        writebyte(address);
+ 115   1        respons();
+ 116   1        writebyte(date);
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 3   
+
+ 117   1        respons();
+ 118   1        stop();
+ 119   1      }
+ 120          //向地址读一个字节数据子函数
+ 121          uchar read_add(uchar address)
+ 122          {
+ 123   1        uchar date;
+ 124   1        start();
+ 125   1        writebyte(0xa0); //A0,A1,A2接地，AT24C02芯片地址为1010，送控制字为1010A2A1A0R/~W
+ 126   1        respons();
+ 127   1        writebyte(address);
+ 128   1        respons();
+ 129   1        start();
+ 130   1        writebyte(0xa1); //A0,A1,A2接地，AT24C02芯片地址为1010，送控制字为1010A2A1A0R/~W
+ 131   1        respons();
+ 132   1        date=readbyte();
+ 133   1        stop();
+ 134   1        return date;
+ 135   1      }
+ 136          //向地址写n个字节数据子函数
+ 137          void write_n_add(uchar *p,uchar address,uchar n)
+ 138          {
+ 139   1        uchar i;
+ 140   1        for(i=0;i<n;i++)
+ 141   1        {
+ 142   2          write_add((address+i),*(p+i));
+ 143   2          delay1(20);
+ 144   2        }
+ 145   1      }
+ 146          //向地址读n个字节数据子函数
+ 147          void read_n_add(uchar *p,uchar address,uchar n)
+ 148          {
+ 149   1        uchar i;
+ 150   1        for(i=0;i<n;i++)
+ 151   1        {
+ 152   2          *(p+i)=read_add(address+i); 
+ 153   2        }
+ 154   1      }
+ 155          //LCD1602液晶读忙检子函数
+ 156          bit LCD1602_busy()
+ 157          {                          
+ 158   1          bit a;
+ 159   1          RS=0;
+ 160   1          RW=1;
+ 161   1          E=1;
+ 162   1          _nop_();
+ 163   1          _nop_();
+ 164   1          a=(bit)(P0&0x80);
+ 165   1          E=0;
+ 166   1          return a; 
+ 167   1      }
+ 168          //LCD1602液晶写命令子函数
+ 169          void write_com(uchar com) 
+ 170          {
+ 171   1        while(LCD1602_busy());
+ 172   1          RW=0;
+ 173   1        RS=0;
+ 174   1          E=0;
+ 175   1        P0=com;
+ 176   1        delay1(5);
+ 177   1          E=1;
+ 178   1        delay1(5);
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 4   
+
+ 179   1          E=0;
+ 180   1      }
+ 181          //LCD1602液晶写数据子函数
+ 182          void write_date(uchar date)
+ 183          {
+ 184   1        while(LCD1602_busy());
+ 185   1          RW=0;
+ 186   1          RS=1;
+ 187   1          E=0;
+ 188   1          P0=date;
+ 189   1        delay1(5);
+ 190   1          E=1;
+ 191   1        delay1(5);
+ 192   1          E=0;          
+ 193   1      }
+ 194          //写一个字符子函数
+ 195          void write_1_char(uchar zifu)
+ 196          {
+ 197   1        write_date(zifu); 
+ 198   1      }
+ 199          //向液晶写n个字符子函数
+ 200          void write_n_char(uchar zifu[])
+ 201          {
+ 202   1        uchar i;
+ 203   1        for(i=0;;i++)
+ 204   1        {
+ 205   2          write_1_char(zifu[i]);
+ 206   2          if(zifu[i+1]=='\0')
+ 207   2            break;
+ 208   2        }
+ 209   1      }
+ 210          //设置液晶显示位置子函数
+ 211          void LCD1602_pos(uchar x,uchar y) 
+ 212          {
+ 213   1        uchar pos;
+ 214   1        if(x==0)
+ 215   1          x=0x80;
+ 216   1        else if(x==1)
+ 217   1          x=0x80+0x40;
+ 218   1        pos=x+y;
+ 219   1        write_com(pos);
+ 220   1      }
+ 221          //LCD1602液晶初始化子函数
+ 222          void LCD1602_init()
+ 223          {
+ 224   1          E=0;
+ 225   1          write_com(0x38);//设置16x2显示，5x7点阵，8位数据口 
+ 226   1          write_com(0x0c);//设置开显示，不显示光标 
+ 227   1          write_com(0x06);//写一个字符后地址指针加1 
+ 228   1        write_com(0x01);//显示清0，数据指针清0         
+ 229   1      }
+ 230          //报警子函数
+ 231          void baojing1()
+ 232          {
+ 233   1        int i=0;
+ 234   1        for(i=0;i<5;i++)
+ 235   1        {
+ 236   2          beep=1;
+ 237   2          D1=0;
+ 238   2          delay1(5);
+ 239   2          beep=0;
+ 240   2          D1=1;
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 5   
+
+ 241   2          delay1(5);  
+ 242   2        }
+ 243   1      }
+ 244          void baojing2()
+ 245          {
+ 246   1        uchar i;
+ 247   1        for(i=0;i<10;i++)
+ 248   1        {
+ 249   2          baojing1();
+ 250   2        }
+ 251   1      }
+ 252          //矩阵按键扫描子函数
+ 253          uchar keyscan()
+ 254          {
+ 255   1        uchar temp,key;
+ 256   1        key=0xff;
+ 257   1        P1=0xfe; //将第一行线置低电平
+ 258   1        temp=P1;//读JPJK的当前状态到 temp
+ 259   1        temp&=0xf0;// temp = temp & 0xf0 按位与 
+ 260   1        if(temp!=0xf0)
+ 261   1        {
+ 262   2          delay1(10);//延时去抖
+ 263   2          temp=P1;
+ 264   2          temp&=0xf0;
+ 265   2            if(temp!=0xf0)//第一行有键被按下
+ 266   2          {
+ 267   3            temp=P1;//读被按下的键
+ 268   3            baojing1();
+ 269   3            switch(temp)
+ 270   3            {
+ 271   4              case 0xee:  key=1;
+ 272   4                    break;
+ 273   4              case 0xde:  key=2;
+ 274   4                    break;
+ 275   4              case 0xbe:  key=3;
+ 276   4                    break;
+ 277   4              case 0x7e:  key=0x0a;
+ 278   4                    break;
+ 279   4            }
+ 280   3            while(temp!=0xf0)//等待按键释放
+ 281   3            {
+ 282   4              temp=P1;
+ 283   4              temp&=0xf0;
+ 284   4            }
+ 285   3          }
+ 286   2        }
+ 287   1        P1=0xfd; //将第二行线置低电平
+ 288   1        temp=P1;//读JPJK的当前状态到 temp
+ 289   1        temp&=0xf0;// temp = temp & 0xf0
+ 290   1        if(temp!=0xf0)
+ 291   1        {
+ 292   2          delay1(10);//延时去抖
+ 293   2          temp=P1;
+ 294   2          temp&=0xf0;
+ 295   2            if(temp!=0xf0)//第二行有键被按下
+ 296   2          {
+ 297   3            temp=P1;//读被按下的键
+ 298   3            baojing1();
+ 299   3            switch(temp)
+ 300   3            {
+ 301   4              case 0xed:  key=4;
+ 302   4                    break;
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 6   
+
+ 303   4              case 0xdd:  key=5;
+ 304   4                    break;
+ 305   4              case 0xbd:  key=6;
+ 306   4                    break;
+ 307   4              case 0x7d:  key=0x0b;
+ 308   4                    break;
+ 309   4            }
+ 310   3            while(temp!=0xf0)//等待按键释放
+ 311   3            {
+ 312   4              temp=P1;
+ 313   4              temp&=0xf0;
+ 314   4            }
+ 315   3          }
+ 316   2        }
+ 317   1        P1=0xfb; //将第 三行线置低电平
+ 318   1        temp=P1;//读JPJK的当前状态到 temp
+ 319   1        temp&=0xf0;// temp = temp & 0xf0
+ 320   1        if(temp!=0xf0)
+ 321   1        {
+ 322   2          delay1(10);//延时去抖
+ 323   2          temp=P1;
+ 324   2          temp&=0xf0;
+ 325   2            if(temp!=0xf0)//第三行有键被按下
+ 326   2          {
+ 327   3            temp=P1;//读被按下的键
+ 328   3            baojing1();
+ 329   3            switch(temp)
+ 330   3            {
+ 331   4              case 0xeb:  key=7;
+ 332   4                    break;
+ 333   4              case 0xdb:  key=8;
+ 334   4                    break;
+ 335   4              case 0xbb:  key=9;
+ 336   4                    break;
+ 337   4              case 0x7b:  key=0x0c;
+ 338   4                    break;
+ 339   4            }
+ 340   3            while(temp!=0xf0)//等待按键释放
+ 341   3            {
+ 342   4              temp=P1;
+ 343   4              temp&=0xf0;
+ 344   4            }
+ 345   3          }
+ 346   2        }
+ 347   1        P1=0xf7; //将第四行线置低电平
+ 348   1        temp=P1;//读JPJK的当前状态到 temp
+ 349   1        temp&=0xf0;// temp = temp & 0xf0
+ 350   1        if(temp!=0xf0)
+ 351   1        {
+ 352   2          delay1(10);//延时去抖
+ 353   2          temp=P1;
+ 354   2          temp&=0xf0;
+ 355   2            if(temp!=0xf0)//第四行有键被按下
+ 356   2          {
+ 357   3            temp=P1;//读被按下的键
+ 358   3            baojing1();
+ 359   3            switch(temp)
+ 360   3            {
+ 361   4              case 0xe7:  key=0;
+ 362   4                    break;
+ 363   4              case 0xd7:  key=0;
+ 364   4                    break;
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 7   
+
+ 365   4              case 0xb7:  key=0x0f;
+ 366   4                    break;
+ 367   4              case 0x77:  key=0x0d;
+ 368   4                    break;
+ 369   4            }
+ 370   3            while(temp!=0xf0)//等待按键释放
+ 371   3            {
+ 372   4              temp=P1;
+ 373   4              temp&=0xf0;
+ 374   4            }
+ 375   3          }
+ 376   2        }
+ 377   1          return key; //返回按下的键 
+ 378   1      }
+ 379          //比较密码子函数
+ 380          bit sfj1(uchar *string1,uchar *string2)
+ 381          {
+ 382   1        uchar i;
+ 383   1        for(i=0;i<6;i++)
+ 384   1        {
+ 385   2          if(string1[i]!=string2[i])
+ 386   2            return 0;
+ 387   2        }
+ 388   1        return 1;
+ 389   1      }
+ 390          //选择输入密码或修改密码函数
+ 391          uchar step_choose()
+ 392          {
+ 393   1        uchar key;
+ 394   1        key=0xff;
+ 395   1        write_com(0x06);//写一个字符后地址指针加 1 
+ 396   1          write_com(0x01);//显示清零，数据指针清零
+ 397   1        LCD1602_pos(0,0);
+ 398   1        write_n_char(" Please Input ");
+ 399   1        LCD1602_pos(1,0);
+ 400   1        write_n_char(" Press key begin  "); 
+ 401   1        while((key!=0x0a)&&(key!=0x0b))
+ 402   1          key=keyscan();  
+ 403   1        return key;
+ 404   1      }
+ 405          //输入密码子函数
+ 406          bit input_mima(uchar * mima)
+ 407          {
+ 408   1        uchar i,key;
+ 409   1        LCD1602_pos(1,0);
+ 410   1        for(i=0;i<7;i++)
+ 411   1        {
+ 412   2          delay1(100);
+ 413   2          if(i<6)
+ 414   2          {
+ 415   3            do
+ 416   3            {
+ 417   4              key=keyscan();
+ 418   4            }//扫描键盘
+ 419   3            while(key==0xff);
+ 420   3            if((key!=0x0f)&&(key!=0x0a)&&(key!=0x0c))//不是退格也不是确认键
+ 421   3            {
+ 422   4              write_date('*');//是数字键显示*
+ 423   4              mima[i]=key;
+ 424   4            }
+ 425   3            if(key==0x0f)//是退格键
+ 426   3            {
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 8   
+
+ 427   4              if(i>0)
+ 428   4              {
+ 429   5                  LCD1602_pos(1,--i);//光标前移一位
+ 430   5                write_date(' ');//清空一位
+ 431   5                mima[i]=' ';//写空
+ 432   5                LCD1602_pos(1,i);
+ 433   5                i--;//密码计数器减一 ,因为循环后会+1，所以在这里要加1
+ 434   5              }
+ 435   4            }
+ 436   3            if(key==0x0c)//没完成密码输入返回错误信息
+ 437   3            {
+ 438   4              LCD1602_pos(0,0);
+ 439   4              return(0);
+ 440   4            }
+ 441   3          }
+ 442   2          if(i==6)
+ 443   2          {
+ 444   3            do
+ 445   3            {
+ 446   4              key=keyscan();
+ 447   4            }
+ 448   3            while((key!=0x0f)&&(key!=0x0c));
+ 449   3            if(key==0x0f)
+ 450   3            {
+ 451   4              LCD1602_pos(1,--i);
+ 452   4              write_date(' ');
+ 453   4              mima[i]=' ';
+ 454   4              LCD1602_pos(1,i);
+ 455   4              i--;
+ 456   4            }
+ 457   3            if(key==0x0c)//密码位数正确
+ 458   3            {
+ 459   4              return(1);//返回1正确信号
+ 460   4            }
+ 461   3          }
+ 462   2        } 
+ 463   1      }
+ 464          //密码处理子函数
+ 465          void sfj2() 
+ 466          {
+ 467   1        uchar key,i;
+ 468   1        uchar idata table2[6]={' ',' ',' ',' ',' ',' '};//存放密码缓冲区
+ 469   1        uchar idata table3[6]={' ',' ',' ',' ',' ',' '};
+ 470   1        uchar idata table4[6]={' ',' ',' ',' ',' ',' '};
+ 471   1        key=step_choose();
+ 472   1        if(key==0x0a)//begin被按下,接收输入密码，处理
+ 473   1        {
+ 474   2          read_n_add(table2,0x00,6);
+ 475   2          write_com(0x06);//写一个字符后地址指针加 1 
+ 476   2          write_com(0x01);//显示清零，数据指针清零
+ 477   2          write_com(0x0f);//显示光标
+ 478   2          LCD1602_pos(0,0);
+ 479   2          write_n_char(" Please Input ");   
+ 480   2          if(input_mima(table3)) //处理输入密码
+ 481   2          {
+ 482   3            if(sfj1(table3,table1) || sfj1(table3,table2)) //密码正确
+ 483   3            {
+ 484   4              LCD1602_pos(0,0);
+ 485   4              write_com(0x0c);
+ 486   4                  write_com(0x06);//写一个字符后地址指针加 1 
+ 487   4                  write_com(0x01);//显示清零，数据指针清零
+ 488   4              write_n_char(" password right ");
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 9   
+
+ 489   4              aa=0; //清除密码错误次数
+ 490   4              D1=0; //开锁
+ 491   4              beep=1; //响一下
+ 492   4              delay1(400);
+ 493   4              beep=0;
+ 494   4              TR0=1;
+ 495   4              cc=1;
+ 496   4              while(key!=0x0d&&cc) //lock没按下一直开
+ 497   4              {     
+ 498   5                key=keyscan();
+ 499   5              }
+ 500   4              TR0=0;
+ 501   4              D1=1;//lock按下了关锁
+ 502   4            }
+ 503   3            else //密码 不正确
+ 504   3            {
+ 505   4              LCD1602_pos(0,0);
+ 506   4              write_com(0x0c); //关光标
+ 507   4              write_com(0x06);//写一个字符后地址指针加 1 
+ 508   4              write_com(0x01);//显示清零，数据指针清零
+ 509   4              write_n_char(" password wrong");
+ 510   4              delay1(400);
+ 511   4              aa++;
+ 512   4              if(aa==4)
+ 513   4              {
+ 514   5                aa=0;
+ 515   5                  i=20; //密码不正确报警
+ 516   5                while(i--)
+ 517   5                  baojing2();
+ 518   5              }
+ 519   4            }
+ 520   3          }
+ 521   2          else //密码没有输入正确或完成
+ 522   2          {
+ 523   3            LCD1602_pos(0,0);
+ 524   3            write_com(0x0c); //关光标
+ 525   3              write_com(0x06);//写一个字符后地址指针加 1 
+ 526   3              write_com(0x01);//显示清零，数据指针清零
+ 527   3            write_n_char(" password wrong");
+ 528   3            delay1(400);
+ 529   3            aa++;
+ 530   3            if(aa==4)
+ 531   3            {
+ 532   4              aa=0;
+ 533   4                i=20; //密码不正确报警
+ 534   4              while(i--)
+ 535   4                baojing2();
+ 536   4            }
+ 537   3          }
+ 538   2        }
+ 539   1        if(key==0x0b)//set被按下,修改密码
+ 540   1        {
+ 541   2          read_n_add(table2,0x00,6);
+ 542   2          write_com(0x06);//写一个字符后地址指针加 1 
+ 543   2          write_com(0x01);//显示清零，数据指针清零
+ 544   2          write_com(0x0f);//显示光标
+ 545   2          LCD1602_pos(0,0);
+ 546   2          write_n_char(" input password");    
+ 547   2          write_com(0x0f);//显示光标  
+ 548   2          if(input_mima(table3)) //处理输入密码
+ 549   2          {
+ 550   3            if(sfj1(table3,table1) || sfj1(table3,table2)) //密码正确
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 10  
+
+ 551   3            {
+ 552   4              LCD1602_pos(0,0);
+ 553   4              write_com(0x0c);
+ 554   4                  write_com(0x06);//写一个字符后地址指针加 1 
+ 555   4                  write_com(0x01);//显示清零，数据指针清零
+ 556   4              write_n_char("password right ");
+ 557   4              aa=0; //清除密码错误次数
+ 558   4              delay1(500);
+ 559   4              dd=1;
+ 560   4              while(dd) //下面开始修改密码
+ 561   4              {
+ 562   5                write_com(0x06);//写一个字符后地址指针加 1 
+ 563   5                write_com(0x01);//显示清零，数据指针清零
+ 564   5                write_com(0x0f);//显示光标
+ 565   5                LCD1602_pos(0,0);
+ 566   5                write_n_char("In new password");
+ 567   5                delay1(500);
+ 568   5                if(input_mima(table3)) //处理输入密码
+ 569   5                {
+ 570   6                  LCD1602_pos(0,0);
+ 571   6                  write_com(0x0c);
+ 572   6                      write_com(0x06);//写一个字符后地址指针加 1 
+ 573   6                      write_com(0x01);//显示清零，数据指针清零
+ 574   6                  write_n_char("Input new pass"); //确定新密码
+ 575   6                  LCD1602_pos(1,0);
+ 576   6                  write_n_char("word again");
+ 577   6                  delay1(800);
+ 578   6                  LCD1602_pos(0,0);
+ 579   6                  write_com(0x0f);//显示光标
+ 580   6                      write_com(0x06);//写一个字符后地址指针加 1 
+ 581   6                      write_com(0x01);//显示清零，数据指针清零
+ 582   6                  write_n_char("In new password");            
+ 583   6                  if(input_mima(table4)) //处理输入密码
+ 584   6                  {
+ 585   7                    if(sfj1(table3,table4)) //密码正确
+ 586   7                    {
+ 587   8                      LCD1602_pos(0,0);
+ 588   8                      write_com(0x0c);
+ 589   8                          write_com(0x06);//写一个字符后地址指针加 1 
+ 590   8                          write_com(0x01);//显示清零，数据指针清零
+ 591   8                      write_n_char("password has");
+ 592   8                      LCD1602_pos(1,0);
+ 593   8                      write_n_char("change already");
+ 594   8                      write_n_add(table4,0x00,6); //把修改的密码存进24C02
+ 595   8                      delay1(1000);
+ 596   8                      dd=0;
+ 597   8                    }
+ 598   7                    else //密码 不正确
+ 599   7                    {
+ 600   8                      LCD1602_pos(0,0);
+ 601   8                      write_com(0x0c); //关光标
+ 602   8                      write_com(0x06);//写一个字符后地址指针加 1 
+ 603   8                      write_com(0x01);//显示清零，数据指针清零
+ 604   8                      write_n_char("password wrong");
+ 605   8                      delay1(600);
+ 606   8                      aa++;
+ 607   8                      if(aa==4)
+ 608   8                      {
+ 609   9                        aa=0;
+ 610   9                          i=20; //3次输入密码不正确报警
+ 611   9                        while(i--)
+ 612   9                          baojing2();
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 11  
+
+ 613   9                      }
+ 614   8                      dd=0;
+ 615   8                    }
+ 616   7                  }
+ 617   6                  else //密码没有输入正确或完成
+ 618   6                  {
+ 619   7                    LCD1602_pos(0,0);
+ 620   7                    write_com(0x0c); //关光标
+ 621   7                      write_com(0x06);//写一个字符后地址指针加 1 
+ 622   7                    write_com(0x01);//显示清零，数据指针清零
+ 623   7                    write_n_char(" password wrong");
+ 624   7                    delay1(600);
+ 625   7                    aa++;
+ 626   7                    if(aa==4)
+ 627   7                    {
+ 628   8                      aa=0;
+ 629   8                        i=20; //3次输入密码不正确报警
+ 630   8                      while(i--)
+ 631   8                        baojing2();
+ 632   8                    }
+ 633   7                  } 
+ 634   6                }
+ 635   5                else //密码没有输入正确或完成
+ 636   5                {
+ 637   6                  LCD1602_pos(0,0);
+ 638   6                  write_com(0x0c); //关光标
+ 639   6                    write_com(0x06);//写一个字符后地址指针加 1 
+ 640   6                    write_com(0x01);//显示清零，数据指针清零
+ 641   6                  write_n_char("password wrong");
+ 642   6                  delay1(600);
+ 643   6                  dd=0;
+ 644   6                  aa++;
+ 645   6                  if(aa==4)
+ 646   6                  {
+ 647   7                    aa=0;
+ 648   7                      i=20; //3次输入密码不正确报警
+ 649   7                    while(i--)
+ 650   7                      baojing2();
+ 651   7                  }
+ 652   6                }                 
+ 653   5              }
+ 654   4            }
+ 655   3            else //密码 不正确
+ 656   3            {
+ 657   4              LCD1602_pos(0,0);
+ 658   4              write_com(0x0c); //关光标
+ 659   4              write_com(0x06);//写一个字符后地址指针加 1 
+ 660   4              write_com(0x01);//显示清零，数据指针清零
+ 661   4              write_n_char("password wrong");
+ 662   4              delay1(600);
+ 663   4              aa++;
+ 664   4              if(aa==4)
+ 665   4              {
+ 666   5                aa=0;
+ 667   5                  i=20; //3次输入密码不正确报警
+ 668   5                while(i--)
+ 669   5                  baojing2();
+ 670   5              }
+ 671   4            }
+ 672   3          }
+ 673   2          else //密码没有输入正确或完成
+ 674   2          {
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 12  
+
+ 675   3            LCD1602_pos(0,0);
+ 676   3            write_com(0x0c); //关光标
+ 677   3              write_com(0x06);//写一个字符后地址指针加 1 
+ 678   3              write_com(0x01);//显示清零，数据指针清零
+ 679   3            write_n_char("password wrong");
+ 680   3            delay1(600);
+ 681   3            aa++;
+ 682   3            if(aa==4)
+ 683   3            {
+ 684   4              aa=0;
+ 685   4                i=20; //3次输入密码不正确报警
+ 686   4              while(i--)
+ 687   4                baojing2();
+ 688   4            }
+ 689   3          }   
+ 690   2        }
+ 691   1      }
+ 692          //主函数
+ 693          void main()
+ 694          {
+ 695   1        LCD1602_init();//调用液晶初始化子函数
+ 696   1        chushi();//调用24C02总线初始化子函数
+ 697   1        beep=0;
+ 698   1        D1=1; //关锁
+ 699   1        TMOD=0x01;//选择定时器0方式1
+ 700   1        EA=1;//打开总中断
+ 701   1        ET0=1;//打开定时器0中断
+ 702   1        EX0=1; //打开外部中断0
+ 703   1        IT0=1;//下降沿触发
+ 704   1        TR0=0;//关闭定时器
+ 705   1        TH0=0x4c;//50ms装初值
+ 706   1        TL0=0x00;
+ 707   1        while(1)
+ 708   1        {
+ 709   2            sfj2();//调用密码处理子函数 
+ 710   2        }
+ 711   1      }
+ 712          //外部中断0子函数
+ 713          void wb0() interrupt 0
+ 714          {
+ 715   1        delay1(2000);
+ 716   1        if(!k1)
+ 717   1        {
+ 718   2          LCD1602_pos(0,0);
+ 719   2          write_com(0x0c); //关光标
+ 720   2            write_com(0x06);//写一个字符后地址指针加 1 
+ 721   2          write_com(0x01);//显示清零，数据指针清零
+ 722   2          chushi();//24C02总线初始化
+ 723   2          write_n_add(table1,0x00,6);
+ 724   2          write_n_char("password renew");
+ 725   2          LCD1602_pos(1,0);
+ 726   2          write_n_char("already");
+ 727   2          delay1(1000);
+ 728   2          LCD1602_pos(0,0);
+ 729   2          write_com(0x0c); //关光标
+ 730   2            write_com(0x06);//写一个字符后地址指针加 1 
+ 731   2          write_com(0x01);//显示清零，数据指针清零
+ 732   2          write_n_char(" Please Input ");
+ 733   2          LCD1602_pos(1,0);
+ 734   2          write_n_char(" Press key begin  ");
+ 735   2        }
+ 736   1      }
+C51 COMPILER V9.56.0.0   DIANZHIMIMASHUO                                                   05/16/2021 16:11:21 PAGE 13  
+
+ 737          //定时器0中断子函数
+ 738          void t0() interrupt 1 
+ 739          {
+ 740   1        TH0=0x4c;//50ms定时
+ 741   1        TL0=0x00;
+ 742   1        bb++;
+ 743   1        if(bb==200)//10秒时间到
+ 744   1        {
+ 745   2          bb=0;
+ 746   2          cc=0;
+ 747   2        }
+ 748   1      }
+ 749                  
+*** WARNING C291 IN LINE 463 OF dianzhimimashuo.c: not every exit path returns a value
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2473    ----
+   CONSTANT SIZE    =    225    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      4      31
+   IDATA SIZE       =      6      18
+   BIT SIZE         =   ----       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)
